@@ -16,11 +16,11 @@ void swapData(double *a, double *b)
     if (c == nullptr)
         throw std::runtime_error("Memory cannot be allocated.");
     // swap
-    auto start = std::chrono::system_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
     std::memcpy(c, a, SIZE*sizeof(double));
     std::memcpy(a, b, SIZE*sizeof(double));
     std::memcpy(b, c, SIZE*sizeof(double));
-    auto end = std::chrono::system_clock::now();
+    auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::micro> time = end - start;
     std::cout << "Time to swap data: " << time.count() << "us" << std::endl;
     // free memory
@@ -39,11 +39,11 @@ void testDataSwap(double *a, double *b)
 
 void swapPointer(double **a_ptr, double **b_ptr)
 {
-    auto start = std::chrono::system_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
     double *c = *a_ptr;
     *a_ptr = *b_ptr;
     *b_ptr = c;
-    auto end = std::chrono::system_clock::now();
+    auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::micro> time = end - start;
     std::cout << "Time to swap pointers: " << time.count() << "us" << std::endl;
 }

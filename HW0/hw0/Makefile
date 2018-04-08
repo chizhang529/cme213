@@ -6,7 +6,7 @@ SRC3=main_q3.cpp
 SRC4=main_q4.cpp
 HDR= matrix.hpp matrix_lt.hpp
 
-default: main_q1 # main_q2 main_q3 main_q4
+default: main_q1 main_q2 main_q3 main_q4
 main_q1: $(SRC1)
 	$(CXX) $(CXXFLAGS) $< -o $@
 main_q2: $(SRC2) $(HDR)

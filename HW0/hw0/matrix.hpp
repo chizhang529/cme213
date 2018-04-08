@@ -1,9 +1,14 @@
 #ifndef MATRIX_HPP
 #define MATRIX_HPP
 
-// class Matrix {
-// public:
-//     virtual
-// };
+#include <cstdlib>
 
-#endif
+template <class T>
+class Matrix {
+public:
+    virtual int l0_norm() = 0;
+    virtual size_t size() = 0;
+    virtual T &operator ()(const unsigned int i, const unsigned int j) = 0;
+};
+
+#endif  /* MATRIX_HPP */
