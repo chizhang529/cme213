@@ -58,7 +58,7 @@ void testPointerSwap(std::pair<double *, double *> prev, std::pair<double *, dou
     std::cout << "Done" << std::endl;
 }
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
     double *a = (double *)std::malloc(SIZE*sizeof(double));
     double *b = (double *)std::malloc(SIZE*sizeof(double));

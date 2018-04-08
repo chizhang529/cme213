@@ -71,9 +71,9 @@ T &MatrixLt<T>::operator ()(const unsigned int i, const unsigned int j)
 template <typename T>
 void MatrixLt<T>::print()
 {
-    for (size_t i = 0; i < sz; ++i) {
+    for (unsigned int i = 0; i < sz; ++i) {
         std::cout << '[';
-        for (size_t j = 0; j < sz; ++j) {
+        for (unsigned int j = 0; j < sz; ++j) {
             std::cout << ((i >= j) ? data[i * (i + 1) / 2 + j] : ZERO);
             if (j != sz - 1)
                 std::cout << "\t";
