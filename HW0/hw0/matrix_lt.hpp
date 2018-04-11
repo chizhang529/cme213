@@ -15,27 +15,29 @@ class MatrixLt : public Matrix<T> {
 public:
     // constructor
     MatrixLt() {};
-    MatrixLt(const size_t sz);
+    MatrixLt(const int sz);
     // destructor
     ~MatrixLt() {};
 
     int l0_norm();
     size_t size();
-    T &operator ()(const unsigned int i, const unsigned int j);
+    T &operator ()(const int i, const int j);
     void print();
 
 private:
     size_t sz;
     std::vector<T> data;
     // no actual data stored for upper triangular elements
-    T ZERO = 0.0;
+    const T ZERO = 0.0;
 };
 
 template <typename T>
-MatrixLt<T>::MatrixLt(const size_t sz)
+MatrixLt<T>::MatrixLt(const int sz)
 {
+    if (sz <= 0)
+        throw std::runtime_error("Invalid matrix size: should be larger than zero.");
     this->sz = sz;
-    data = std::vector<T>(sz * (sz + 1) / 2, 0);
+    this->data = std::vector<T>(sz * (sz + 1) / 2, 0);
 }
 
 template <typename T>
@@ -57,7 +59,7 @@ size_t MatrixLt<T>::size()
 }
 
 template <typename T>
-T &MatrixLt<T>::operator ()(const unsigned int i, const unsigned int j)
+T &MatrixLt<T>::operator ()(const int i, const int j)
 {
     if (i < 0 || i >= sz || j < 0 || j >= sz)
         throw std::out_of_range("The matrix index is out of range.");
@@ -65,7 +67,7 @@ T &MatrixLt<T>::operator ()(const unsigned int i, const unsigned int j)
         throw std::runtime_error("Not allowed to access upper triangular zero-value elements.");
 
     size_t index = i * (i + 1) / 2 + j;
-    return (i >= j) ? data[index] : ZERO;
+    return data[index];
 }
 
 template <typename T>

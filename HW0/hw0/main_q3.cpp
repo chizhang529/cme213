@@ -34,8 +34,10 @@ public:
  */
 void PrintRepr(std::vector<Matrix *> &mat_vec)
 {
-	for (auto mat : mat_vec)
-		std::cout << mat->repr() << std::endl;
+	size_t sz = mat_vec.size();
+	for (size_t i = 0; i < sz; ++i)
+		std::cout << "matrix" << (i + 1) << ": "
+		          << mat_vec[i]->repr() << std::endl;
 }
 
 /* TODO: Your main method should fill a vector with an instance of SparseMatrix

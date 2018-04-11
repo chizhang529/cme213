@@ -22,11 +22,8 @@ size_t dataPointNumber(std::set<double> &data, const double lb, const double ub)
 
     std::set<double>::iterator it_lb = data.lower_bound(lb);
     std::set<double>::iterator it_ub = data.upper_bound(ub);
-    size_t count = 0;
-    for (auto it = it_lb; it != it_ub; ++it)
-        count++;
 
-    return count;
+    return std::distance(it_lb, it_ub);
 }
 
 int main(int argc, char **argv)
