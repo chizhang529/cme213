@@ -22,6 +22,7 @@ public:
     int l0_norm();
     size_t size();
     T &operator ()(const int i, const int j);
+    void clear();
     void print();
 
 private:
@@ -68,6 +69,12 @@ T &MatrixLt<T>::operator ()(const int i, const int j)
 
     size_t index = i * (i + 1) / 2 + j;
     return data[index];
+}
+
+template <typename T>
+void MatrixLt<T>::clear()
+{
+    data = std::vector<T>(sz * (sz + 1) / 2, 0);
 }
 
 template <typename T>

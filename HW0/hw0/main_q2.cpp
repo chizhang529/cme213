@@ -102,6 +102,22 @@ void testDataRW()
     assert(mat(2, 0) == num1);
     assert(mat.l0_norm() == 2);
 
+    mat.clear();
+    // fill all non-zero elements and test l0_norm
+    size_t sz = mat.size();
+    int max_l0_norm = (sz * (sz+1)) / 2;
+    for (size_t i = 0; i < sz; ++i) {
+        for (size_t j = 0; j <= i; ++j)
+            mat(i, j) = random_num(i+1, i+2);
+    }
+    assert(mat.l0_norm() == max_l0_norm);
+
+    // set three elements to zero
+    mat(0, 0) = 0.0;
+    mat(1, 1) = 0.0;
+    mat(2, 2) = 0.0;
+    assert(mat.l0_norm() == (max_l0_norm - 3));
+
     std::cout << "Done" << std::endl;
 }
 
@@ -114,12 +130,4 @@ int main(int argc, char **argv)
 
     std::cout << "All tests passed." << std::endl;
     return 0;
-
-
-    // put element
-    // read element
-    // l0_norm
-    // different types
-    // out of range
-    // empty matrices
 }
