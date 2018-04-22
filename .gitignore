@@ -5,3 +5,4 @@ main_q*.dSYM/
 .*.swp
 .*.swo
 .DS_Store
+sftp-config.json
