@@ -8,19 +8,12 @@
 #include <stdlib.h>
 #include "tests_q2.h"
 
-#define QUESTION6
-
 typedef unsigned int uint;
 
 const uint kSizeTestVector = 4000000;
 const uint kSizeMask = 16; // must be a divider of 32 for this program to work correctly
 const uint kRandMax = 1 << 31;
 const uint kNumBitsUint = 32;
-
-uint bucket_mask(uint num, uint numBuckets, uint startBit) {
-    uint mask = numBuckets - 1; // numBuckets = 2^numBits
-    return mask & (num >> startBit);
-}
 
 /* Function: computeBlockHistograms
  * --------------------------------
@@ -32,12 +25,16 @@ std::vector<uint> computeBlockHistograms(const std::vector<uint>& keys,
         uint numBlocks, uint numBuckets,
         uint numBits, uint startBit, uint blockSize) {
     std::vector<uint> blockHistograms(numBlocks * numBuckets, 0);
+    size_t max_index = keys.size() - 1;
+    uint mask = numBuckets - 1;
 
-    #pragma omp parallel for collapse(2)
+    #pragma omp parallel for
     for (uint i = 0; i < numBlocks; ++i) {
         for (uint j = 0; j < blockSize; ++j) {
-            uint offset = bucket_mask(keys[i*blockSize + j], numBuckets, startBit);
-            blockHistograms[i*numBuckets + offset]++;
+            if (i*blockSize + j <= max_index) {
+                uint bucket = mask & (keys[i*blockSize + j] >> startBit);
+                blockHistograms[i*numBuckets + bucket]++;
+            }
         }
     }
 
@@ -53,10 +50,10 @@ std::vector<uint> reduceLocalHistoToGlobal(const std::vector<uint>&
         blockHistograms, uint numBlocks, uint numBuckets) {
     std::vector<uint> globalHisto(numBuckets, 0);
 
-    #pragma omp parallel for collapse(2)
+    // #pragma omp parallel for collapse(2)
     for (uint i = 0; i < numBlocks; ++i) {
         for (uint j = 0; j < numBuckets; ++j) {
-            #pragma omp atomic
+            // #pragma omp atomic
             globalHisto[j] += blockHistograms[i*numBuckets + j];
         }
     }
@@ -78,9 +75,7 @@ std::vector<uint> computeBlockExScanFromGlobalHisto(uint numBuckets,
     // initialize offsets in a block (size of numBuckets)
     std::vector<uint> offsets = globalHistoExScan;
     // populate block 0 of blockExScan
-    #pragma omp parallel for
-    for (uint i = 0; i < numBuckets; ++i)
-        blockExScan[i] = globalHistoExScan[i];
+    std::copy(globalHistoExScan.begin(), globalHistoExScan.end(), blockExScan.begin());
 
     for (uint i = 1; i < numBlocks; ++i) {
         for (uint j = 0; j < numBuckets; ++j) {
@@ -102,19 +97,22 @@ void populateOutputFromBlockExScan(const std::vector<uint>& blockExScan,
                                    uint numBlocks, uint numBuckets, uint startBit,
                                    uint numBits, uint blockSize, const std::vector<uint>& keys,
                                    std::vector<uint>& sorted) {
-    std::vector<uint> indexOffset(keys.size(), 0);
+    size_t max_index = keys.size() - 1;
+    uint mask = numBuckets - 1;
 
-    #pragma omp parallel for collapse(2)
-    for (uint i = 0; i < numBlocks; ++i) {
-        for (uint j = 0; j < blockSize; ++j) {
-            uint num = keys[i*blockSize + j];
-            uint bucketOffset = bucket_mask(num, numBuckets, startBit);
-            uint index = blockExScan[i*numBuckets + bucketOffset];
-            uint sortedIndex = index + indexOffset[index];
-            sorted[sortedIndex] = num;
-            indexOffset[index]++;
+    #pragma omp parallel for
+    for (uint i = 0; i < numBlocks; i++) {
+        std::vector<uint> local_offset(blockExScan.begin() + i * numBuckets,
+                                       blockExScan.begin() + (i+1) * numBuckets);
+        for (uint j = 0; j < blockSize; j++) {
+            if (i*blockSize + j <= max_index) {
+                uint bucket = mask & (keys[i*blockSize + j] >> startBit);
+                sorted[local_offset[bucket]] = keys[i*blockSize + j];
+                local_offset[bucket]++;
+            }
         }
     }
+
 }
 
 /* Function: scanGlobalHisto
@@ -148,36 +146,42 @@ void radixSortParallelPass(std::vector<uint>& keys, std::vector<uint>& sorted,
     std::vector<uint> globalHisto = reduceLocalHistoToGlobal(blockHistograms,
                                     numBlocks, numBuckets);
 
+
     // now we scan this global histogram
     std::vector<uint> globalHistoExScan = scanGlobalHisto(globalHisto, numBuckets);
+
 
     // now we do a local histogram in each block and add in the global value to get global position
     std::vector<uint> blockExScan = computeBlockExScanFromGlobalHisto(numBuckets,
                                     numBlocks, globalHistoExScan, blockHistograms);
 
+
     // populate the sorted vector
     populateOutputFromBlockExScan(blockExScan, numBlocks, numBuckets, startBit,
                                   numBits, blockSize, keys, sorted);
+
 }
 
 // Q1 - Q5
-// int radixSortParallel(std::vector<uint>& keys, std::vector<uint>& keys_tmp,
-//                       uint numBits) {
-//     for(uint startBit = 0; startBit < kNumBitsUint; startBit += 2 * numBits) {
-//         radixSortParallelPass(keys, keys_tmp, numBits, startBit, keys.size() / 8);
-//         radixSortParallelPass(keys_tmp, keys, numBits, startBit + numBits,
-//                               keys.size() / 8);
-//     }
+int radixSortParallel(std::vector<uint>& keys, std::vector<uint>& keys_tmp,
+                      uint numBits) {
+    for(uint startBit = 0; startBit < kNumBitsUint; startBit += 2 * numBits) {
+        radixSortParallelPass(keys, keys_tmp, numBits, startBit, keys.size() / 8);
+        radixSortParallelPass(keys_tmp, keys, numBits, startBit + numBits,
+                              keys.size() / 8);
+    }
 
-//     return 0;
-// }
+    return 0;
+}
 
 // Q6
 int radixSortParallel(std::vector<uint>& keys, std::vector<uint>& keys_tmp,
                       uint numBits, uint numBlocks) {
     for(uint startBit = 0; startBit < kNumBitsUint; startBit += 2 * numBits) {
-        radixSortParallelPass(keys, keys_tmp, numBits, startBit, keys.size() / numBlocks);
-        radixSortParallelPass(keys_tmp, keys, numBits, startBit + numBits, keys.size() / numBlocks);
+        radixSortParallelPass(keys, keys_tmp, numBits, startBit,
+                              (keys.size() + numBlocks - 1) / numBlocks);
+        radixSortParallelPass(keys_tmp, keys, numBits, startBit + numBits,
+                              (keys.size() + numBlocks - 1) / numBlocks);
     }
 
     return 0;
@@ -239,11 +243,30 @@ void initializeRandomly(std::vector<uint>& keys) {
 }
 
 int main() {
+    // double t1 = omp_get_wtime();
     Test1();
+    // double t2 = omp_get_wtime();
+    // std::cout << "T1: " << (t2 - t1) << std::endl;
+
+    // t1 = omp_get_wtime();
     Test2();
+    // t2 = omp_get_wtime();
+    // std::cout << "T2: " << (t2 - t1) << std::endl;
+
+    // t1 = omp_get_wtime();
     Test3();
+    // t2 = omp_get_wtime();
+    // std::cout << "T3: " << (t2 - t1) << std::endl;
+
+    // t1 = omp_get_wtime();
     Test4();
+    // t2 = omp_get_wtime();
+    // std::cout << "T4: " << (t2 - t1) << std::endl;
+
+    // t1 = omp_get_wtime();
     Test5();
+    // t2 = omp_get_wtime();
+    // std::cout << "T5: " << (t2 - t1) << std::endl;
 
     // Initialize Variables
     std::vector<uint> keys_stl(kSizeTestVector);
@@ -281,8 +304,7 @@ int main() {
 
     // parallel radix sort
     double startRadixParallel = omp_get_wtime();
-    // radixSortParallel(keys_parallel, temp_keys, kSizeMask);
-    radixSortParallel(keys_parallel, temp_keys, kSizeMask, 8);
+    radixSortParallel(keys_parallel, temp_keys, kSizeMask);
     double endRadixParallel = omp_get_wtime();
 
     success = true;
