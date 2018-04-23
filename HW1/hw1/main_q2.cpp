@@ -102,17 +102,17 @@ void populateOutputFromBlockExScan(const std::vector<uint>& blockExScan,
 
     #pragma omp parallel for
     for (uint i = 0; i < numBlocks; i++) {
-        std::vector<uint> local_offset(blockExScan.begin() + i * numBuckets,
-                                       blockExScan.begin() + (i+1) * numBuckets);
+        // populate local offset
+        auto start = blockExScan.begin() + i * numBuckets;
+        std::vector<uint> local_offset(numBuckets, 0);
+        std::copy(start, start + numBuckets, local_offset.begin());
         for (uint j = 0; j < blockSize; j++) {
             if (i*blockSize + j <= max_index) {
                 uint bucket = mask & (keys[i*blockSize + j] >> startBit);
-                sorted[local_offset[bucket]] = keys[i*blockSize + j];
-                local_offset[bucket]++;
+                sorted[local_offset[bucket]++] = keys[i*blockSize + j];
             }
         }
     }
-
 }
 
 /* Function: scanGlobalHisto
