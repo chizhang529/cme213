@@ -1,0 +1,206 @@
+The master node of this job is gpu-200-2.stanford.edu
+This job runs on the following nodes:
+gpu-200-2
+Starting at Wed May  9 17:22:35 PDT 2018
+Running on hosts: gpu-200-2
+Running on 1 nodes.
+Running on 24 processors.
+Current working directory is /home/czhang94/hw3
+
+Output from code
+----------------
+size =  256 order of stencil =  2
+Order: 2
+                     time (ms)     GBytes/sec
+            CPU       0.774016        20.3208
+         Global       0.335104        46.9366
+          Block         0.3168        49.6485
+
+                         L2Ref           LInf          L2Err
+         Global        4959.93    7.44391e-06    1.33259e-06
+          Block        4959.93    7.44391e-06    1.33259e-06
+
+-------------------------------------------
+
+size =  256 order of stencil =  4
+Order: 4
+                     time (ms)     GBytes/sec
+            CPU         1.3311        19.6937
+         Global       0.365408        71.7401
+          Block       0.327072        80.1487
+
+                         L2Ref           LInf          L2Err
+         Global        5037.23       5.54e-06    1.22856e-06
+          Block        5037.23       5.54e-06    1.22856e-06
+
+-------------------------------------------
+
+size =  256 order of stencil =  8
+Order: 8
+                     time (ms)     GBytes/sec
+            CPU        2.46208        19.1651
+         Global        0.39392        119.786
+          Block       0.369056        127.856
+
+                         L2Ref           LInf          L2Err
+         Global        5193.34    4.46914e-06     1.2934e-06
+          Block        5193.34    4.46914e-06     1.2934e-06
+
+-------------------------------------------
+
+size =  512 order of stencil =  2
+Order: 2
+                     time (ms)     GBytes/sec
+            CPU         2.8889        21.7781
+         Global       0.652864         96.367
+          Block       0.664608        94.6642
+
+                         L2Ref           LInf          L2Err
+         Global        19665.6    1.90439e-06    2.37268e-07
+          Block        19665.6    1.90439e-06    2.37268e-07
+
+-------------------------------------------
+
+size =  512 order of stencil =  4
+Order: 4
+                     time (ms)     GBytes/sec
+            CPU        5.31779        19.7183
+         Global       0.888672        117.994
+          Block       0.766752        136.756
+
+                         L2Ref           LInf          L2Err
+         Global        19819.1    1.42957e-06    2.35251e-07
+          Block        19819.1    1.42957e-06    2.35251e-07
+
+-------------------------------------------
+
+size =  512 order of stencil =  8
+Order: 8
+                     time (ms)     GBytes/sec
+            CPU         12.577         15.007
+         Global        1.02531        184.084
+          Block        1.07613        175.391
+
+                         L2Ref           LInf          L2Err
+         Global        20127.4    1.19188e-06     2.6677e-07
+          Block        20127.4    1.19188e-06     2.6677e-07
+
+-------------------------------------------
+
+size =  1024 order of stencil =  2
+Order: 2
+                     time (ms)     GBytes/sec
+            CPU        11.7736        21.3748
+         Global        1.95584         128.67
+          Block        1.84589        136.335
+
+                         L2Ref           LInf          L2Err
+         Global        78313.5    5.29509e-07    4.34141e-08
+          Block        78313.5    5.29509e-07    4.34141e-08
+
+-------------------------------------------
+
+size =  1024 order of stencil =  4
+Order: 4
+                     time (ms)     GBytes/sec
+            CPU        22.0415        19.0291
+         Global        3.02589        138.614
+          Block        2.37875        176.324
+
+                         L2Ref           LInf          L2Err
+         Global        78619.1    4.97318e-07    1.04611e-07
+          Block        78619.1    4.97318e-07    1.04611e-07
+
+-------------------------------------------
+
+size =  1024 order of stencil =  8
+Order: 8
+                     time (ms)     GBytes/sec
+            CPU        49.8204        15.1539
+         Global        3.76925        200.298
+          Block         3.8559        195.797
+
+                         L2Ref           LInf          L2Err
+         Global        79232.1    8.94626e-07    1.60433e-07
+          Block        79232.1    8.94626e-07    1.60433e-07
+
+-------------------------------------------
+
+size =  2048 order of stencil =  2
+Order: 2
+                     time (ms)     GBytes/sec
+            CPU        55.0594        18.2827
+         Global        6.73136        149.544
+          Block        6.30755        159.592
+
+                         L2Ref           LInf          L2Err
+         Global         312555    4.09326e-07     1.0857e-08
+          Block         312555    4.09326e-07     1.0857e-08
+
+-------------------------------------------
+
+size =  2048 order of stencil =  4
+Order: 4
+                     time (ms)     GBytes/sec
+            CPU        95.7921        17.5142
+         Global        9.92806        168.988
+          Block         7.7599        216.204
+
+                         L2Ref           LInf          L2Err
+         Global         313165    5.91415e-07    9.15683e-08
+          Block         313165    5.91415e-07    9.15683e-08
+
+-------------------------------------------
+
+size =  2048 order of stencil =  8
+Order: 8
+                     time (ms)     GBytes/sec
+            CPU        200.319        15.0755
+         Global        11.3652        265.716
+          Block        10.6603        283.286
+
+                         L2Ref           LInf          L2Err
+         Global         314387    1.04309e-06    1.39764e-07
+          Block         314387    1.04309e-06    1.39764e-07
+
+-------------------------------------------
+
+size =  4096 order of stencil =  2
+Order: 2
+                     time (ms)     GBytes/sec
+            CPU         212.17        18.9779
+         Global        26.1686        153.869
+          Block         24.122        166.923
+
+                         L2Ref           LInf          L2Err
+         Global    1.24882e+06              0              0
+          Block    1.24882e+06              0              0
+
+-------------------------------------------
+
+size =  4096 order of stencil =  4
+Order: 4
+                     time (ms)     GBytes/sec
+            CPU        373.593        17.9631
+         Global        36.4389        184.168
+          Block        29.0073        231.352
+
+                         L2Ref           LInf          L2Err
+         Global    1.25004e+06    4.81643e-07     5.1299e-08
+          Block    1.25004e+06    4.81643e-07     5.1299e-08
+
+-------------------------------------------
+
+size =  4096 order of stencil =  8
+Order: 8
+                     time (ms)     GBytes/sec
+            CPU        795.862         15.178
+         Global        43.0257        280.753
+          Block        38.7398        311.814
+
+                         L2Ref           LInf          L2Err
+         Global    1.25248e+06     6.0329e-07    5.14062e-08
+          Block    1.25248e+06     6.0329e-07    5.14062e-08
+
+-------------------------------------------
+

@@ -18,5 +18,5 @@ Grid.o: Grid.cu Grid.h
 	$(CUD) -c $< $(CUDFLAGS)
 
 clean:
-	rm -f *.o *~ *~ *Errors.txt main 
+	rm -f *.o *~ *~ *Errors.txt main
 	rm -rf *.dSYM

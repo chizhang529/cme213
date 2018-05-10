@@ -63,7 +63,17 @@ template<int order>
 __global__
 void gpuStencil(float* next, const float* curr, int gx, int nx, int ny,
                 float xcfl, float ycfl) {
-    // TODO
+    // assert((gx - nx) == order);
+    // thread id inside (nx * ny) area
+    int tid_x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    int tid_y = (blockIdx.y * blockDim.y) + threadIdx.y;
+    // thread id inside (gx * gy) area (pad with border)
+    int gid_x = tid_x + order / 2;
+    int gid_y = tid_y + order / 2;
+    int index = gid_x + gx * gid_y;
+
+    if (tid_x < nx && tid_y < ny)
+        next[index] = Stencil<order>(curr + index, gx, xcfl, ycfl);
 }
 
 /**
@@ -83,19 +93,47 @@ double gpuComputation(Grid& curr_grid, const simParams& params) {
 
     Grid next_grid(curr_grid);
 
-    // TODO: Declare variables/Compute parameters.
-    dim3 threads(0, 0);
-    dim3 blocks(0, 0);
+    // declare variables and compute parameters
+    const int nx = params.nx(), ny = params.ny();
+    const double xcfl = params.xcfl(), ycfl = params.ycfl();
+    const int gx = params.gx();
+    const int order = params.order();
+
+    // choose block size as 192 threads (organize them as square as possible)
+    const unsigned int thread_num = 192;
+    const unsigned int block_x = 32;
+    const unsigned int block_y = thread_num / block_x;
+    dim3 blocks(block_x, block_y);   // 2D block (32, 6)
+
+    // compute grid dimensions
+    const unsigned int grid_x = ceil(float(nx)/(float)blocks.x);
+    const unsigned int grid_y = ceil(float(ny)/(float)blocks.y);
+    dim3 grids(grid_x, grid_y);      // 2D grid
 
     event_pair timer;
     start_timer(&timer);
 
     for(int i = 0; i < params.iters(); ++i) {
-
         // update the values on the boundary only
         BC.updateBC(next_grid.dGrid_, curr_grid.dGrid_);
 
-        // TODO: Apply stencil.
+        // apply stencil
+        switch (order) {
+            case 2:
+                gpuStencil<2><<<grids, blocks>>>(next_grid.dGrid_, curr_grid.dGrid_,
+                                                 gx, nx, ny, xcfl, ycfl);
+                break;
+            case 4:
+                gpuStencil<4><<<grids, blocks>>>(next_grid.dGrid_, curr_grid.dGrid_,
+                                                 gx, nx, ny, xcfl, ycfl);
+                break;
+            case 8:
+                gpuStencil<8><<<grids, blocks>>>(next_grid.dGrid_, curr_grid.dGrid_,
+                                                 gx, nx, ny, xcfl, ycfl);
+                break;
+            default:
+                fprintf(stderr, "%s\n", "Unknown order specified.");
+        }
 
         check_launch("gpuStencil");
 
@@ -130,7 +168,23 @@ template<int order, int numYPerStep>
 __global__
 void gpuStencilLoop(float* next, const float* curr, int gx, int nx, int ny,
                     float xcfl, float ycfl) {
-    // TODO
+    // assert((gx - nx) == order);
+    // thread id inside (nx * ny) area
+    int tid_x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    int tid_y = (blockIdx.y * blockDim.y) * numYPerStep + threadIdx.y;
+
+    // multiple-pass update
+    for (int i = 0; i < numYPerStep; ++i) {
+        if (tid_x < nx && tid_y < ny) {
+            // thread id inside (gx * gy) area (pad with border)
+            // NOTE: do not pass template arguments directly
+            int gid_x = tid_x + (gx - nx) / 2;
+            int gid_y = tid_y + (gx - nx) / 2;
+            int index = gid_x + gx * gid_y;
+            next[index] = Stencil<order>(curr + index, gx, xcfl, ycfl);
+            tid_y += blockDim.y;
+        }
+    }
 }
 
 /**
@@ -149,10 +203,26 @@ double gpuComputationLoop(Grid& curr_grid, const simParams& params) {
     boundary_conditions BC(params);
 
     Grid next_grid(curr_grid);
-    // TODO
-    // TODO: Declare variables/Compute parameters.
-    dim3 threads(0, 0);
-    dim3 blocks(0, 0);
+
+    // declare variables and compute parameters
+    const int nx = params.nx(), ny = params.ny();
+    const double xcfl = params.xcfl(), ycfl = params.ycfl();
+    const int gx = params.gx();
+    const int order = params.order();
+
+    // choose block size as 256 (~192) threads (so that block_x is exact multiples of block_y)
+    const int thread_num = 256;
+    const int block_x = 32;
+    const int block_y = thread_num / block_x;
+    dim3 blocks(block_x, block_y);   // 2D block (32, 8)
+
+    // compute stride in y direction of grid
+    const int numYPerStep = block_x / block_y;
+
+    // compute grid dimensions
+    const unsigned int grid_x = ceil(float(nx)/(float)blocks.x);
+    const unsigned int grid_y = ceil(float(ny)/(float)(blocks.y * numYPerStep));
+    dim3 grids(grid_x, grid_y);      // 2D grid
 
     event_pair timer;
     start_timer(&timer);
@@ -162,7 +232,23 @@ double gpuComputationLoop(Grid& curr_grid, const simParams& params) {
         // update the values on the boundary only
         BC.updateBC(next_grid.dGrid_, curr_grid.dGrid_);
 
-        // TODO: Apply stencil.
+        // apply stencil
+        switch (order) {
+            case 2:
+                gpuStencilLoop<2, numYPerStep><<<grids, blocks>>>(next_grid.dGrid_, curr_grid.dGrid_,
+                                                                  gx, nx, ny, xcfl, ycfl);
+                break;
+            case 4:
+                gpuStencilLoop<4, numYPerStep><<<grids, blocks>>>(next_grid.dGrid_, curr_grid.dGrid_,
+                                                                  gx, nx, ny, xcfl, ycfl);
+                break;
+            case 8:
+                gpuStencilLoop<8, numYPerStep><<<grids, blocks>>>(next_grid.dGrid_, curr_grid.dGrid_,
+                                                                  gx, nx, ny, xcfl, ycfl);
+                break;
+            default:
+                fprintf(stderr, "%s\n", "Unknown order specified.");
+        }
 
         check_launch("gpuStencilLoop");
 
