@@ -1,0 +1,45 @@
+The master node of this job is gpu-200-1.stanford.edu
+This job runs on the following nodes:
+gpu-200-1
+Starting at Wed May 23 16:24:56 PDT 2018
+Running on hosts: gpu-200-1
+Running on 1 nodes.
+Running on 24 processors.
+Current working directory is /home/czhang94/hw4
+
+Output from code
+----------------
+
+Before ciphering!
+
+Top 5 Letter Frequencies
+-------------
+e: 0.12294
+t: 0.0925416
+a: 0.0815906
+o: 0.0730598
+n: 0.0688952
+create_cipher.cu:189:[34mmain[32m	TEST PASSED.[0m
+
+Encryption key: bmzrcjjyjmb
+After ciphering!
+
+Top 5 Letter Frequencies
+-------------
+f: 0.0639658
+q: 0.0612304
+n: 0.0556211
+c: 0.0552935
+u: 0.0541898
+Period 4 ioc: 0.979418
+Period 5 ioc: 0.940029
+Period 6 ioc: 0.943389
+Period 7 ioc: 0.96123
+Period 8 ioc: 1.06688
+Period 9 ioc: 1.04729
+Period 10 ioc: 1.19042
+Period 11 ioc: 1.70507
+Period 22 ioc: 1.70313
+keyLength: 11
+
+Encryption key: bmzrcjjyjmb
