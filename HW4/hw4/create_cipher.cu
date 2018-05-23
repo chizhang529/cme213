@@ -56,7 +56,7 @@ struct apply_shift : thrust::binary_function<unsigned char, int,
         const unsigned int shift = shift_arr[pos % period];
         const unsigned char num_letters = 'z' - 'a' + 1;
         const unsigned char offset = (c - 'a' + shift) % num_letters;
-        return (c + offset);
+        return ('a' + offset);
     }
 };
 
@@ -192,7 +192,7 @@ int main(int argc, char** argv) {
     thrust::device_vector<unsigned int> shifts(period);
     // fill in shifts using thrust random number generation (make sure
     // not to allow 0-shifts, this would make for rather poor encryption)
-    thrust::default_random_engine srand(123);
+    thrust::minstd_rand srand(123);
     thrust::uniform_int_distribution<int> radnom_shift(1, 'z' - 'a');
     for (size_t i = 0; i < period; ++i)
         shifts[i] = radnom_shift(srand);

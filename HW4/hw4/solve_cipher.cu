@@ -7,6 +7,7 @@
 #include <thrust/sort.h>
 #include <thrust/reduce.h>
 #include <thrust/inner_product.h>
+#include <thrust/execution_policy.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/extrema.h>
 
@@ -18,7 +19,19 @@
 // this can be the same as in create_cipher.cu
 struct apply_shift : thrust::binary_function<unsigned char, int,
         unsigned char> {
-    // TODO
+    thrust::device_ptr<int> shift_arr;
+    const unsigned int period;
+    // constructor
+    apply_shift(thrust::device_ptr<int> arr, int _period):
+                shift_arr(arr), period(_period) {}
+
+    __host__ __device__
+    unsigned char operator()(const unsigned char c, const int pos) const {
+        const unsigned char num_letters = 'z' - 'a' + 1;
+        const int shift = shift_arr[pos % period] + num_letters; // WARNING: shift could be negative now
+        const unsigned char offset = (c - 'a' + shift) % num_letters;
+        return ('a' + offset);
+    }
 };
 
 int main(int argc, char** argv) {
@@ -59,9 +72,14 @@ int main(int argc, char** argv) {
         int shift_idx = 4; // Start at index 4.
 
         while(!found) {
-            // TODO: Use thrust to compute the number of characters that match
+            // compute the number of characters that match
             // when shifting text_clean by shift_idx.
-            int numMatches = 0; // = ?  TODO
+            int numMatches = thrust::inner_product(text_clean.begin(),
+                                                   text_clean.end() - shift_idx,
+                                                   text_clean.begin() + shift_idx,
+                                                   0,
+                                                   thrust::plus<int>(),
+                                                   thrust::equal_to<unsigned char>());
 
             double ioc = numMatches /
                          static_cast<double>((text_clean.size() - shift_idx) / 26.);
@@ -95,11 +113,38 @@ int main(int argc, char** argv) {
     thrust::device_vector<int> dShifts(keyLength);
     typedef thrust::device_vector<unsigned char>::iterator Iterator;
 
-    // TODO: Now that you have determined the length of the key, you need to
+    // now that you have determined the length of the key, you need to
     // compute the actual key. To do so, perform keyLength individual frequency
     // analyses on text_copy to find the shift which aligns the most common
     // character in text_copy with the character 'e'. Fill up the
     // dShifts vector with the correct shifts.
+    thrust::device_vector<int> record(26);
+    for (size_t i = 0; i < keyLength; ++i) {
+        strided_range<Iterator> sequence(text_copy.begin() + i, text_copy.end(), keyLength);
+        // copy and sort data
+        thrust::sort(sequence.begin(), sequence.end());
+        // count the number of bins needed
+        const unsigned int num_bins = thrust::inner_product(sequence.begin(),
+                                                            sequence.end() - 1,
+                                                            sequence.begin() + 1,
+                                                            1,
+                                                            thrust::plus<int>(),
+                                                            thrust::not_equal_to<unsigned char>());
+
+        thrust::device_vector<unsigned char> letters(num_bins);
+        thrust::device_vector<unsigned int> freq(num_bins);
+        // calculate letter frequency
+        thrust::reduce_by_key(sequence.begin(), sequence.end(),
+                              thrust::constant_iterator<int>(1),
+                              letters.begin(), freq.begin());
+        // sort based on frequency (descending order)
+        thrust::sort_by_key(freq.begin(), freq.end(),
+                            letters.begin(), thrust::greater<unsigned int>());
+
+        const unsigned char common_char = letters[0];
+        const int shift = 'e' - common_char;
+        dShifts[i] = shift;
+    }
 
     std::cout << "\nEncryption key: ";
 
@@ -110,8 +155,11 @@ int main(int argc, char** argv) {
     std::cout << std::endl;
 
     // take the shifts and transform cipher text back to plain text
-    // TODO : transform the cipher text back to the plain text by using the
-    // apply_shift functor.
+    // transform the cipher text back to the plain text by using the
+    // apply_shift functor
+    thrust::transform(text_clean.begin(), text_clean.end(),
+                      thrust::make_counting_iterator(0), text_clean.begin(),
+                      apply_shift(dShifts.data(), keyLength));
 
     thrust::host_vector<unsigned char> h_plain_text = text_clean;
 
