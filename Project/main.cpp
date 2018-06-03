@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
 
     if(nDevices < num_procs) {
         std::cerr << "Please allocate at least as many GPUs as\
-		 the number of MPI procs." << std::endl;
+         the number of MPI procs." << std::endl;
     }
 
     checkCudaErrors(cudaSetDevice(rank));

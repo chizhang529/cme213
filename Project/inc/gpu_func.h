@@ -41,6 +41,16 @@ inline double stop_timer(event_pair* p) {
 
 int useless_gpu_add_one(int t);
 
+// helper functions
+void gpu_sigmoid(double *mat, int M, int N);
+void gpu_softmax(double *mat, int M, int N);
+void gpu_transpose(double *mat1, double *mat2, int M, int N);
+void gpu_linear(double *mat1, double *mat2, double alpha, double beta, int M, int N, int flag);
+// void gpu_sum(double *mat1, double *mat2, int M, int N, int mode);
+void gpu_row_sum(double *mat1, double *mat2, int M, int N);
+void gpu_elem_mult(double* mat1, double* mat2, double alpha, int M, int N);
+
+// general matrix multiplication
 int myGEMM(double* A, double* B, double* C, double* alpha, double* beta, int M,
            int N, int K);
 

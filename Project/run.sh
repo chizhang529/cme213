@@ -1,6 +1,7 @@
 #!/bin/bash
 
-#SBATCH --time=24:00:00
+#SBATCH --mem=20G
+#SBATCH --time=00:10:00
 #SBATCH --partition=gpu
 #SBATCH --qos=normal
 #SBATCH --nodes=1
@@ -10,13 +11,7 @@
 #SBATCH --output=cme213-%j.out
 #SBATCH --error=cme213-%j.err
 
-echo "In file run.sh, update the line below before running the script"
-echo "WORKDIR='<directory with your code>'"
-exit 0
-
-# Comment the 3 lines above after setting WORKDIR
-
-WORKDIR='<directory with your code>'
+WORKDIR='/home/czhang94/project'
 export WORKDIR
 
 ### ---------------------------------------
