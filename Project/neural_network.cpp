@@ -357,7 +357,7 @@ void gpu_feedforward(NeuralNetwork& nn, const arma::mat& X, struct cache& cache)
 }
 
 void gpu_backprop(NeuralNetwork& nn, const arma::mat& y, double reg,
-              const struct cache& bpcache, struct grads& bpgrads) {
+              const struct cache& bpcache, struct grads& bpgrads, int num_cols_per_batch) {
     bpgrads.dW.resize(2);
     bpgrads.db.resize(2);
     // dimensions
@@ -409,7 +409,7 @@ void gpu_backprop(NeuralNetwork& nn, const arma::mat& y, double reg,
     gpu_transpose(d_dW2, d_dW2_t, M2, K2);
 
     // dW2 = 1/N * (yc - y) * a1.T + reg * W2
-    double factor = 1.0 / (double)N1;
+    double factor = 1.0 / (double)num_cols_per_batch;
     gpu_linear(d_yc, d_diff, factor, -factor, M2, N2, 0);   // diff = 1/N * (yc - y)
     double alpha = 1.0, beta = reg;
     myGEMM(d_diff, d_a1_t, d_dW2, &alpha, &beta, M2, K2, N2);
@@ -455,42 +455,6 @@ void gpu_backprop(NeuralNetwork& nn, const arma::mat& y, double reg,
     cudaFree(d_dW2_t);
 }
 
-void gpu_gradient_descent(NeuralNetwork& nn, const double learning_rate, struct grads &bpgrads) {
-    for(size_t i = 0; i < nn.W.size(); ++i) {
-        int M = nn.W[i].n_rows,
-            N = nn.W[i].n_cols;
-        double *d_Wi, *d_dWi;
-        cudaMalloc((void **)&d_Wi, (M * N) * sizeof(double));
-        cudaMalloc((void **)&d_dWi, (M * N) * sizeof(double));
-        cudaMemcpy(d_Wi, nn.W[i].memptr(), (M * N) * sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(d_dWi, bpgrads.dW[i].memptr(), (M * N) * sizeof(double), cudaMemcpyHostToDevice);
-
-        double alpha = -learning_rate, beta = 1.0;
-        gpu_linear(d_dWi, d_Wi, alpha, beta, M, N, 0);
-        cudaMemcpy(nn.W[i].memptr(), d_Wi, (M * N) * sizeof(double), cudaMemcpyDeviceToHost);
-
-        cudaFree(d_Wi);
-        cudaFree(d_dWi);
-    }
-
-    for(size_t i = 0; i < nn.b.size(); ++i) {
-        int M = nn.W[i].n_rows,
-            N = 1;
-        double *d_bi, *d_dbi;
-        cudaMalloc((void **)&d_bi, (M * N) * sizeof(double));
-        cudaMalloc((void **)&d_dbi, (M * N) * sizeof(double));
-        cudaMemcpy(d_bi, nn.b[i].memptr(), (M * N) * sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(d_dbi, bpgrads.db[i].memptr(), (M * N) * sizeof(double), cudaMemcpyHostToDevice);
-
-        double alpha = -learning_rate, beta = 1.0;
-        gpu_linear(d_dbi, d_bi, alpha, beta, M, N, 0);
-        cudaMemcpy(nn.b[i].memptr(), d_bi, (M * N) * sizeof(double), cudaMemcpyDeviceToHost);
-
-        cudaFree(d_bi);
-        cudaFree(d_dbi);
-    }
-}
-
 /*
  * TODO
  * Train the neural network &nn of rank 0 in parallel. Your MPI implementation
@@ -505,8 +469,12 @@ void parallel_train(NeuralNetwork& nn, const arma::mat& X, const arma::mat& y,
     MPI_SAFE_CALL(MPI_Comm_size(MPI_COMM_WORLD, &num_procs));
     MPI_SAFE_CALL(MPI_Comm_rank(MPI_COMM_WORLD, &rank));
 
-    int N = (rank == 0)?X.n_cols:0;
+    int M = (rank == 0) ? X.n_rows : 0;   // numbe of features
+    int N = (rank == 0) ? X.n_cols : 0;   // number of examples
+    int C = (rank == 0) ? y.n_rows : 0;   // number of classes
+    MPI_SAFE_CALL(MPI_Bcast(&M, 1, MPI_INT, 0, MPI_COMM_WORLD));
     MPI_SAFE_CALL(MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD));
+    MPI_SAFE_CALL(MPI_Bcast(&C, 1, MPI_INT, 0, MPI_COMM_WORLD));
 
     std::ofstream error_file;
     error_file.open("Outputs/CpuGpuDiff.txt");
@@ -532,38 +500,87 @@ void parallel_train(NeuralNetwork& nn, const arma::mat& X, const arma::mat& y,
              * 3. reduce the coefficient updates and broadcast to all nodes with `MPI_Allreduce()'
              * 4. update local network coefficient at each node
              */
-            if (rank == 0) {
-                int last_col = std::min((batch + 1)*batch_size-1, N-1);
-                arma::mat X_batch = X.cols(batch * batch_size, last_col);
-                arma::mat y_batch = y.cols(batch * batch_size, last_col);
+            int last_col = std::min((batch + 1)*batch_size-1, N-1);
+            int num_cols_per_batch = last_col - batch * batch_size + 1;
+            int num_cols_per_proc = ceil(num_cols_per_batch / (float)num_procs);
 
-                struct cache bpcache;
-                gpu_feedforward(nn, X_batch, bpcache);
-
-                struct grads bpgrads;
-                gpu_backprop(nn, y_batch, reg, bpcache, bpgrads);
-
-                if(print_every > 0 && iter % print_every == 0) {
-                    if(grad_check) {
-                        struct grads numgrads;
-                        numgrad(nn, X_batch, y_batch, reg, numgrads);
-                        assert(gradcheck(numgrads, bpgrads));
-                    }
-
-                    std::cout << "Loss at iteration " << iter << " of epoch " << epoch << "/" <<
-                              epochs << " = " << loss(nn, bpcache.yc, y_batch, reg) << "\n";
-                }
-
-                // gpu_gradient_descent(nn, learning_rate, bpgrads);
-                // Gradient descent step
-                for(int i = 0; i < nn.W.size(); ++i) {
-                    nn.W[i] -= learning_rate * bpgrads.dW[i];
-                }
-
-                for(int i = 0; i < nn.b.size(); ++i) {
-                    nn.b[i] -= learning_rate * bpgrads.db[i];
-                }
+            double *h_X = (double *)malloc((M * num_cols_per_batch) * sizeof(double));
+            double *h_y = (double *)malloc((C * num_cols_per_batch) * sizeof(double));
+            if (h_X == nullptr || h_y == nullptr) {
+                std::cerr << "ERROR: Cannot allocate memory!" << std::endl;
+                exit(0);
             }
+
+            int sendcounts_X[num_procs], displs_X[num_procs];
+            int sendcounts_y[num_procs], displs_y[num_procs];
+            for (int i = 0; i < num_procs; ++i) {
+                sendcounts_X[i] = M * std::min(num_cols_per_proc,
+                                               num_cols_per_batch - i * num_cols_per_proc);
+                sendcounts_y[i] = C * std::min(num_cols_per_proc,
+                                               num_cols_per_batch - i * num_cols_per_proc);
+
+                displs_X[i] = i * (M * num_cols_per_proc);
+                displs_y[i] = i * (C * num_cols_per_proc);
+            }
+
+            // read data into host copies
+            if (rank == 0) {
+                arma::mat X_data = X.cols(batch * batch_size, last_col);
+                arma::mat y_data = y.cols(batch * batch_size, last_col);
+                memcpy(h_X, X_data.memptr(), (M * X_data.n_cols) * sizeof(double));
+                memcpy(h_y, y_data.memptr(), (C * y_data.n_cols) * sizeof(double));
+            }
+
+            // scatter this batch of data to different processors
+            arma::mat X_batch(M, sendcounts_X[rank] / M);
+            MPI_SAFE_CALL(MPI_Scatterv(h_X, sendcounts_X, displs_X, MPI_DOUBLE,
+                                       X_batch.memptr(), sendcounts_X[rank], MPI_DOUBLE,
+                                       0, MPI_COMM_WORLD));
+
+            arma::mat y_batch(C, sendcounts_y[rank] / C);
+            MPI_SAFE_CALL(MPI_Scatterv(h_y, sendcounts_y, displs_y, MPI_DOUBLE,
+                                       y_batch.memptr(), sendcounts_y[rank], MPI_DOUBLE,
+                                       0, MPI_COMM_WORLD));
+
+            // forward
+            struct cache bpcache;
+            gpu_feedforward(nn, X_batch, bpcache);
+            // backprop
+            struct grads bpgrads;
+            gpu_backprop(nn, y_batch, reg, bpcache, bpgrads, num_cols_per_batch);
+
+            if(print_every > 0 && iter % print_every == 0) {
+                if(grad_check) {
+                    struct grads numgrads;
+                    numgrad(nn, X_batch, y_batch, reg, numgrads);
+                    assert(gradcheck(numgrads, bpgrads));
+                }
+
+                std::cout << "Loss at iteration " << iter << " of epoch " << epoch << "/" <<
+                          epochs << " = " << loss(nn, bpcache.yc, y_batch, reg) << "\n";
+            }
+
+            // gradient descent
+            for(size_t i = 0; i < nn.W.size(); ++i) {
+                arma::mat dWi(size(nn.W[i]), arma::fill::zeros);
+                MPI_SAFE_CALL(MPI_Allreduce(bpgrads.dW[i].memptr(), dWi.memptr(),
+                                            bpgrads.dW[i].n_rows * bpgrads.dW[i].n_cols,
+                                            MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD));
+                // regularization term is added num_procs times (should only be added once)
+                dWi -= (num_procs - 1) * reg * nn.W[i];
+                nn.W[i] -= learning_rate * dWi;
+            }
+            for(size_t i = 0; i < nn.b.size(); ++i) {
+                arma::mat dbi(size(nn.b[i]), arma::fill::zeros);
+                MPI_SAFE_CALL(MPI_Allreduce(bpgrads.db[i].memptr(), dbi.memptr(),
+                                            bpgrads.db[i].n_rows * bpgrads.db[i].n_cols,
+                                            MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD));
+                nn.b[i] -= learning_rate * dbi;
+            }
+
+            // free host memory
+            free(h_X);
+            free(h_y);
 
             if(print_every <= 0) {
                 print_flag = batch == 0;

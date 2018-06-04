@@ -31,4 +31,22 @@ echo Output from code
 echo ----------------
 
 # mpirun -np 4 ./main -s -n 1000 -b 800 -l 0.01 -e 20
+echo ++--------------------++
+echo ++      Case 1        ++
+echo ++--------------------++
 mpirun -np 4 ./main -g 1
+
+echo ++--------------------++
+echo ++      Case 2        ++
+echo ++--------------------++
+mpirun -np 4 ./main -g 2
+
+echo ++--------------------++
+echo ++      Case 3        ++
+echo ++--------------------++
+mpirun -np 4 ./main -g 3
+
+echo ++--------------------++
+echo ++      myGEMM        ++
+echo ++--------------------++
+mpirun -np 4 ./main -g 4 # myGEMM
