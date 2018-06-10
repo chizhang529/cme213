@@ -230,42 +230,47 @@ void GEMMSigmoid(double* A, double* B, double* C, const double alpha, const doub
 __global__
 void gpu_GEMMT1(double* A, double* B, double* C, const double alpha, const double beta,
                      const int M, const int N, const int K) {
-    int blockRow = blockIdx.y;
-    int blockCol = blockIdx.x;
-    int row = threadIdx.y;
-    int col = threadIdx.x;
+    // thread row and column within Csub
+    const unsigned int row = threadIdx.x;
+    const unsigned int col = threadIdx.y;
+    // index within grid
+    const unsigned int grid_row = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int grid_col = blockIdx.y * blockDim.y + threadIdx.y;
 
-    __shared__ double As[BLOCK_SIZE][BLOCK_SIZE+1];
-    __shared__ double Bs[BLOCK_SIZE][BLOCK_SIZE+1];
+    double value = 0;
+    const unsigned int iter = ceil(K / float(BLOCK_SIZE));
+    for (int i = 0; i < iter; ++i) {
+        // shared memory used to store Asub and Bsub respectively
+        __shared__ double As[BLOCK_SIZE][BLOCK_SIZE+1];
+        __shared__ double Bs[BLOCK_SIZE][BLOCK_SIZE+1];
 
-    double Cvalue = 0;
-    for (int m = 0; m < ((K + BLOCK_SIZE - 1) / BLOCK_SIZE); ++m) {
-        double* Asub = A + (K * BLOCK_SIZE * blockRow + BLOCK_SIZE * m);
-        double* Bsub = B + (K * BLOCK_SIZE * blockCol + BLOCK_SIZE * m);
-
-        // Load Asub and Bsub from device memory to shared memory
-        if(BLOCK_SIZE * m + col < K)
-            As[row][col] = Asub[row * K + col];
-        else
-            As[row][col] = 0;
-
-        if(BLOCK_SIZE * m + row < K)
-            Bs[row][col] = Bsub[col * K + row];
-        else
-            Bs[row][col] = 0;
+        // load Asub
+        const unsigned int A_col = BLOCK_SIZE * i + col;
+        if (grid_row < M && A_col < K) {
+            As[row][col] = A[K * grid_row + A_col];
+        }
+        // load Bsub
+        const unsigned int B_row = row + BLOCK_SIZE * i;
+        if (B_row < K && grid_col < N) {
+            Bs[row][col] = B[K * grid_col + B_row];
+        }
 
         __syncthreads();
-        for (int e = 0; e < BLOCK_SIZE; ++e)
-            Cvalue += alpha * (As[row][e] * Bs[e][col]);
+
+        unsigned int num_elems = BLOCK_SIZE;
+        if ((K - i * BLOCK_SIZE) < BLOCK_SIZE) {
+            num_elems = K - i * BLOCK_SIZE;
+        }
+        for (int j = 0; j < num_elems; ++j) {
+            value += As[row][j] * Bs[j][col];
+        }
+
         __syncthreads();
     }
 
-    // Write Csub to device memory each thread writes one element
-    if(((BLOCK_SIZE * blockCol + col < N) && (BLOCK_SIZE * blockRow + row < M))){
-        double* Csub = C + (M * BLOCK_SIZE * blockCol + BLOCK_SIZE * blockRow);
-        int Csub_idx = col * M + row;
-        Cvalue += beta * Csub[Csub_idx];
-        Csub[Csub_idx] = Cvalue;
+    if (grid_row < M && grid_col < N) {
+        const unsigned int index = M * grid_col + grid_row;
+        C[index] = alpha * value + beta * C[index];
     }
 }
 
@@ -273,53 +278,56 @@ void GEMMT1(double* A, double* B, double* C, const double alpha, const double be
             const int M, const int N, const int K) {
     dim3 block(BLOCK_SIZE, BLOCK_SIZE);
 
-    const unsigned int grid_x = ceil(N / (float)block.x);
-    const unsigned int grid_y = ceil(M / (float)block.y);
+    const unsigned int grid_x = ceil(M / (float)block.x);
+    const unsigned int grid_y = ceil(N / (float)block.y);
     dim3 grid(grid_x, grid_y);
 
     gpu_GEMMT1<<<grid, block>>>(A, B, C, alpha, beta, M, N, K);
 }
 
 __global__
-void gpu_GEMMT2(double* __restrict__ A, double* __restrict__ B, double* __restrict__ C,
+void gpu_GEMMT2(const double* __restrict__ A, const double* __restrict__ B, double* __restrict__ C,
                 const double alpha, const double beta, const int M, const int N, const int K) {
-    int blockCol = blockIdx.y;
-    int blockRow = blockIdx.x;
-    int col = threadIdx.y;
-    int row = threadIdx.x;
+    // thread row and column within Csub
+    const unsigned int row = threadIdx.x;
+    const unsigned int col = threadIdx.y;
+    // index within grid
+    const unsigned int grid_row = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int grid_col = blockIdx.y * blockDim.y + threadIdx.y;
 
-    __shared__ double As[BLOCK_SIZE][BLOCK_SIZE+1];
-    __shared__ double Bs[BLOCK_SIZE][BLOCK_SIZE+1];
-
-    double Cvalue = 0;
-    for (int m = 0; m < ((K + BLOCK_SIZE - 1) / BLOCK_SIZE); ++m) {
-        double* Asub = A + (M * BLOCK_SIZE * m + BLOCK_SIZE * blockRow);
-        double* Bsub = B + (N * BLOCK_SIZE * m + BLOCK_SIZE * blockCol);
-
-        if(BLOCK_SIZE * m + col < K){
-            As[row][col] = Asub[col * M + row];
-        }else{
-            As[row][col] = 0;
+    double value = 0.0;
+    const unsigned int iter = ceil(K / float(BLOCK_SIZE));
+    for (int i = 0; i < iter; ++i) {
+        // shared memory used to store Asub and Bsub respectively
+        __shared__ double As[BLOCK_SIZE][BLOCK_SIZE+1];
+        __shared__ double Bs[BLOCK_SIZE][BLOCK_SIZE+1];
+        // load Asub
+        const unsigned int A_col = BLOCK_SIZE * i + col;
+        if (grid_row < M && A_col < K) {
+            As[row][col] = A[M * A_col + grid_row];
         }
-
-        if(BLOCK_SIZE * m + row < K){
-            Bs[row][col] = Bsub[row * N + col];
-            //Bs[col][row] = Bsub[col * N + row]; //for coalescing
-        }else{
-            Bs[row][col] = 0;
+        // load Bsub (transpose)
+        const unsigned int B_row = row + BLOCK_SIZE * i;
+        if (B_row < K && grid_col < N) {
+            Bs[row][col] = B[N * B_row + grid_col];
         }
 
         __syncthreads();
-        for (int e = 0; e < BLOCK_SIZE; ++e)
-            Cvalue += alpha * (As[row][e] * Bs[e][col]);
+
+        unsigned int num_elems = BLOCK_SIZE;
+        if ((K - i * BLOCK_SIZE) < BLOCK_SIZE) {
+            num_elems = K - i * BLOCK_SIZE;
+        }
+        for (int j = 0; j < num_elems; ++j) {
+            value += As[row][j] * Bs[j][col];
+        }
+
         __syncthreads();
     }
 
-    if(((BLOCK_SIZE * blockCol + col < N) && (BLOCK_SIZE * blockRow + row < M))){
-        double* Csub = C + (M * BLOCK_SIZE * blockCol + BLOCK_SIZE * blockRow);
-        int Csub_idx = col * M + row;
-        Cvalue += beta * Csub[Csub_idx];
-        Csub[Csub_idx] = Cvalue;
+    if (grid_row < M && grid_col < N) {
+        const unsigned int index = M * grid_col + grid_row;
+        C[index] = alpha * value + beta * C[index];
     }
 }
 

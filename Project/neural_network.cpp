@@ -353,8 +353,8 @@ void parallel_feedforward(NeuralNetwork &nn, double *d_X, NNCache &cache, int N)
     cache.yc = cache.b2_mat;
 }
 
-void parallel_backprop(NeuralNetwork &nn, double* __restrict__ d_X, double* __restrict__ d_y, double reg,
-                       NNCache &cache, int N, int num_procs) {
+void parallel_backprop(NeuralNetwork &nn, double* __restrict__ d_X, double* __restrict__ d_y,
+                       double reg, NNCache &cache, int N, int num_procs) {
     const int M = nn.H[0];     // numbe of features
     const int L = nn.H[1];     // number of neurons in hidden layer
     const int C = nn.H[2];     // number of classes
@@ -461,10 +461,10 @@ void parallel_train(NeuralNetwork& nn, const arma::mat& X, const arma::mat& y,
     // allocate memory in advance and store it in neural network cache
     NNCache nncache(M, L, C, batch_size);
 
-    double *h_dW1 = (double*) malloc((L * M) * sizeof(double));
-    double *h_dW2 = (double*) malloc((C * L) * sizeof(double));
-    double *h_db1 = (double*) malloc(L * sizeof(double));
-    double *h_db2 = (double*) malloc(C * sizeof(double));
+    double *h_dW1 = (double *)malloc((L * M) * sizeof(double));
+    double *h_dW2 = (double *)malloc((C * L) * sizeof(double));
+    double *h_db1 = (double *)malloc((L * 1) *sizeof(double));
+    double *h_db2 = (double *)malloc((C * 1) * sizeof(double));
 
     for(int epoch = 0; epoch < epochs; ++epoch) {
         for(int batch = 0; batch < num_batches; ++batch) {
@@ -480,7 +480,7 @@ void parallel_train(NeuralNetwork& nn, const arma::mat& X, const arma::mat& y,
             int num_cols_per_batch = last_col - start_col + 1;
             int num_cols_per_proc = ceil(num_cols_per_batch / (float)num_procs);
 
-            // copy data in
+            // copy data to device
             cudaMemcpy(nncache.W1, nn.W[0].memptr(), (L * M) * sizeof(double), cudaMemcpyHostToDevice);
             cudaMemcpy(nncache.W2, nn.W[1].memptr(), (C * L) * sizeof(double), cudaMemcpyHostToDevice);
             cudaMemcpy(nncache.dW2, nn.W[1].memptr(), (C * L) * sizeof(double), cudaMemcpyHostToDevice);
