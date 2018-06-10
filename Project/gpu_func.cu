@@ -37,7 +37,7 @@ int useless_gpu_add_one(int t) {
 }
 
 __global__
-void gpu_softmax_kernel(double *mat, int M, int N) {
+void gpu_softmax_kernel(double *mat, const int M, const int N) {
     const unsigned int col = blockIdx.x * blockDim.x + threadIdx.x;
     if (col < N) {
         double sum = 0.0;
@@ -54,7 +54,7 @@ void gpu_softmax_kernel(double *mat, int M, int N) {
     }
 }
 
-void gpu_softmax(double *mat, int M, int N) {
+void gpu_softmax(double *mat, const int M, const int N) {
     dim3 block(BLOCK_SIZE);
 
     const unsigned int grid_x = ceil(N / (float)block.x);
@@ -63,106 +63,74 @@ void gpu_softmax(double *mat, int M, int N) {
     gpu_softmax_kernel<<<grid, block>>>(mat, M, N);
 };
 
-__global__
-void gpu_sigmoid_kernel(double *mat, int M, int N) {
-    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int col = blockIdx.y * blockDim.y + threadIdx.y;
-    if (row < M && col < N) {
-        const unsigned int index = M * col + row;
-        mat[index] = 1.0 / (1.0 + std::exp(-mat[index]));
-    }
-}
-
-void gpu_sigmoid(double *mat, int M, int N) {
-    dim3 block(BLOCK_SIZE, NUM_THREADS/BLOCK_SIZE);
-
-    const unsigned int grid_x = ceil(M / (float)block.x);
-    const unsigned int grid_y = ceil(N / (float)block.y);
-    dim3 grid(grid_x, grid_y);
-
-    gpu_sigmoid_kernel<<<grid, block>>>(mat, M, N);
-}
-
-
-__global__
-void gpu_transpose_kernel(double *mat1, double *mat2, int M, int N) {
-    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int col = blockIdx.y * blockDim.y + threadIdx.y;
-    if (row < M && col < N) {
-        const unsigned int index = M * col + row;
-        const unsigned int new_index = N * row + col;
-        mat2[new_index] = mat1[index];
-    }
-}
-
-void gpu_transpose(double *mat1, double *mat2, int M, int N) {
-    dim3 block(BLOCK_SIZE, NUM_THREADS/BLOCK_SIZE);
-
-    const unsigned int grid_x = ceil(M / (float)block.x);
-    const unsigned int grid_y = ceil(N / (float)block.y);
-    dim3 grid(grid_x, grid_y);
-
-    gpu_transpose_kernel<<<grid, block>>>(mat1, mat2, M, N);
-}
-
-__global__
-void gpu_linear_kernel(double *mat1, double *mat2, double alpha, double beta, int M, int N, int flag) {
-    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int col = blockIdx.y * blockDim.y + threadIdx.y;
-    if (row < M && col < N) {
-        const unsigned int index = M * col + row;
-        if (!flag)
-            mat2[index] = alpha * mat1[index] + beta * mat2[index];
-        else
-            mat2[index] = alpha * mat1[index] + beta * 1.0;
-    }
-}
-
-void gpu_linear(double *mat1, double *mat2, double alpha, double beta, int M, int N, int flag) {
-    dim3 block(BLOCK_SIZE, NUM_THREADS/BLOCK_SIZE);
-
-    const unsigned int grid_x = ceil(M / (float)block.x);
-    const unsigned int grid_y = ceil(N / (float)block.y);
-    dim3 grid(grid_x, grid_y);
-
-    gpu_linear_kernel<<<grid, block>>>(mat1, mat2, alpha, beta, M, N, flag);
-}
-
 // __global__
-// void gpu_sum_kernel(double *mat1, double *mat2, int M, int N, bool flag) {
-//     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-
-//     if (flag && index < M) {
-//         double sum = 0.0;
-//         for (size_t col = 0; col < N; ++col) {
-//             sum += mat1[M * col + index];
-//         }
-//         mat2[index] = sum;
-//     }
-
-//     if (!flag && index < N) {
-//         double sum = 0.0;
-//         for (size_t row = 0; row < M; ++row) {
-//             sum += mat1[M * index + row];
-//         }
-//         mat2[index] = sum;
+// void gpu_transpose_kernel(double *mat1, double *mat2, int M, int N) {
+//     const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+//     const unsigned int col = blockIdx.y * blockDim.y + threadIdx.y;
+//     if (row < M && col < N) {
+//         const unsigned int index = M * col + row;
+//         const unsigned int new_index = N * row + col;
+//         mat2[new_index] = mat1[index];
 //     }
 // }
 
-// void gpu_sum(double *mat1, double *mat2, int M, int N, int mode) {
-//     // mode == 1: sum over row, 0: sum over column
-//     dim3 block(BLOCK_SIZE);
-//     dim3 grid(0);
-//     if (mode) {
-//         grid.x = ceil(N / (float)block.x);
-//     } else {
-//         grid.x = ceil(M / (float)block.x);
-//     }
-//     gpu_sum_kernel<<<grid, block>>>(mat1, mat2, M, N, mode);
+// void gpu_transpose(double *mat1, double *mat2, int M, int N) {
+//     dim3 block(BLOCK_SIZE, NUM_THREADS/BLOCK_SIZE);
+
+//     const unsigned int grid_x = ceil(M / (float)block.x);
+//     const unsigned int grid_y = ceil(N / (float)block.y);
+//     dim3 grid(grid_x, grid_y);
+
+//     gpu_transpose_kernel<<<grid, block>>>(mat1, mat2, M, N);
 // }
 
 __global__
-void gpu_row_sum_kernel(double *mat1, double *mat2, int M, int N) {
+void gpu_linear_kernel(const double* __restrict__ mat1, const double* __restrict__ mat2,
+                       double* __restrict__ mat3, const double alpha, const double beta,
+                       const int M, const int N) {
+    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int col = blockIdx.y * blockDim.y + threadIdx.y;
+    if (row < M && col < N) {
+        const unsigned int index = M * col + row;
+        mat3[index] = alpha * mat1[index] + beta * mat2[index];
+    }
+}
+
+void gpu_linear(double *mat1, double *mat2, double *mat3,
+                const double alpha, const double beta, const int M, const int N) {
+    dim3 block(BLOCK_SIZE, NUM_THREADS/BLOCK_SIZE);
+
+    const unsigned int grid_x = ceil(M / (float)block.x);
+    const unsigned int grid_y = ceil(N / (float)block.y);
+    dim3 grid(grid_x, grid_y);
+
+    gpu_linear_kernel<<<grid, block>>>(mat1, mat2, mat3, alpha, beta, M, N);
+}
+
+__global__
+void gpu_one_minus_kernel(const double* __restrict__ mat1, double* __restrict__ mat2,
+                          const int M, const int N) {
+    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int col = blockIdx.y * blockDim.y + threadIdx.y;
+    if (row < M && col < N) {
+        const unsigned int index = M * col + row;
+        mat2[index] = 1.0 - mat1[index];
+    }
+}
+
+void gpu_one_minus(double *mat1, double *mat2, const int M, const int N) {
+    dim3 block(BLOCK_SIZE, NUM_THREADS/BLOCK_SIZE);
+
+    const unsigned int grid_x = ceil(M / (float)block.x);
+    const unsigned int grid_y = ceil(N / (float)block.y);
+    dim3 grid(grid_x, grid_y);
+
+    gpu_one_minus_kernel<<<grid, block>>>(mat1, mat2, M, N);
+}
+
+__global__
+void gpu_row_sum_kernel(const double* __restrict__ mat1, double* __restrict__ mat2,
+                        const int M, const int N) {
     const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (row < M) {
@@ -174,14 +142,15 @@ void gpu_row_sum_kernel(double *mat1, double *mat2, int M, int N) {
     }
 }
 
-void gpu_row_sum(double *mat1, double *mat2, int M, int N) {
+void gpu_row_sum(double *mat1, double *mat2, const int M, const int N) {
     dim3 block(BLOCK_SIZE);
     dim3 grid(ceil(N / (float)block.x));
     gpu_row_sum_kernel<<<grid, block>>>(mat1, mat2, M, N);
 }
 
 __global__
-void gpu_elem_mult_kernel(double* mat1, double* mat2, double alpha, int M, int N) {
+void gpu_elem_mult_kernel(const double* __restrict__ mat1, double* __restrict__ mat2,
+                          const double alpha, const int M, const int N) {
     const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
     const unsigned int col = blockIdx.y * blockDim.y + threadIdx.y;
     if (row < M && col < N) {
@@ -190,7 +159,7 @@ void gpu_elem_mult_kernel(double* mat1, double* mat2, double alpha, int M, int N
     }
 }
 
-void gpu_elem_mult(double* mat1, double* mat2, double alpha, int M, int N) {
+void gpu_elem_mult(double* mat1, double* mat2, const double alpha, const int M, const int N) {
     dim3 block(BLOCK_SIZE, NUM_THREADS/BLOCK_SIZE);
 
     const unsigned int grid_x = ceil(M / (float)block.x);
@@ -201,9 +170,243 @@ void gpu_elem_mult(double* mat1, double* mat2, double alpha, int M, int N) {
 }
 
 __global__
-void myGEMMKernel(double* A, double* B, double* C, double alpha, double beta, int M,
+void gpu_GEMMSigmoid(const double* __restrict__ A, const double* __restrict__ B, double* __restrict__ C,
+                     const double alpha, const double beta, const int M, const int N, const int K) {
+    // thread row and column within Csub
+    const unsigned int row = threadIdx.x;
+    const unsigned int col = threadIdx.y;
+    // index within grid
+    const unsigned int grid_row = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int grid_col = blockIdx.y * blockDim.y + threadIdx.y;
+
+    double value = 0.0;
+    const unsigned int iter = ceil(K / float(BLOCK_SIZE));
+    for (int i = 0; i < iter; ++i) {
+        // shared memory used to store Asub and Bsub respectively
+        __shared__ double As[BLOCK_SIZE][BLOCK_SIZE+1];
+        __shared__ double Bs[BLOCK_SIZE][BLOCK_SIZE+1];
+        // load Asub
+        const unsigned int A_col = BLOCK_SIZE * i + col;
+        if (grid_row < M && A_col < K) {
+            As[row][col] = A[M * A_col + grid_row];
+        }
+        // load Bsub
+        const unsigned int B_row = row + BLOCK_SIZE * i;
+        if (B_row < K && grid_col < N) {
+            Bs[row][col] = B[K * grid_col + B_row];
+        }
+
+        __syncthreads();
+
+        unsigned int num_elems = BLOCK_SIZE;
+        if ((K - i * BLOCK_SIZE) < BLOCK_SIZE) {
+            num_elems = K - i * BLOCK_SIZE;
+        }
+        for (int j = 0; j < num_elems; ++j) {
+            value += As[row][j] * Bs[j][col];
+        }
+
+        __syncthreads();
+    }
+
+    if (grid_row < M && grid_col < N) {
+        const unsigned int index = M * grid_col + grid_row;
+        value = alpha * value + beta * C[index];
+        C[index] = 1.0 / (1.0 + std::exp(-value));
+    }
+}
+
+void GEMMSigmoid(double* A, double* B, double* C, const double alpha, const double beta,
+                 const int M, const int N, const int K) {
+    dim3 block(BLOCK_SIZE, BLOCK_SIZE);
+
+    const unsigned int grid_x = ceil(M / (float)block.x);
+    const unsigned int grid_y = ceil(N / (float)block.y);
+    dim3 grid(grid_x, grid_y);
+
+    gpu_GEMMSigmoid<<<grid, block>>>(A, B, C, alpha, beta, M, N, K);
+}
+
+__global__
+void gpu_GEMMT1(double* A, double* B, double* C, const double alpha, const double beta,
+                     const int M, const int N, const int K) {
+    int blockRow = blockIdx.y;
+    int blockCol = blockIdx.x;
+    int row = threadIdx.y;
+    int col = threadIdx.x;
+
+    __shared__ double As[BLOCK_SIZE][BLOCK_SIZE+1];
+    __shared__ double Bs[BLOCK_SIZE][BLOCK_SIZE+1];
+
+    double Cvalue = 0;
+    for (int m = 0; m < ((K + BLOCK_SIZE - 1) / BLOCK_SIZE); ++m) {
+        double* Asub = A + (K * BLOCK_SIZE * blockRow + BLOCK_SIZE * m);
+        double* Bsub = B + (K * BLOCK_SIZE * blockCol + BLOCK_SIZE * m);
+
+        // Load Asub and Bsub from device memory to shared memory
+        if(BLOCK_SIZE * m + col < K)
+            As[row][col] = Asub[row * K + col];
+        else
+            As[row][col] = 0;
+
+        if(BLOCK_SIZE * m + row < K)
+            Bs[row][col] = Bsub[col * K + row];
+        else
+            Bs[row][col] = 0;
+
+        __syncthreads();
+        for (int e = 0; e < BLOCK_SIZE; ++e)
+            Cvalue += alpha * (As[row][e] * Bs[e][col]);
+        __syncthreads();
+    }
+
+    // Write Csub to device memory each thread writes one element
+    if(((BLOCK_SIZE * blockCol + col < N) && (BLOCK_SIZE * blockRow + row < M))){
+        double* Csub = C + (M * BLOCK_SIZE * blockCol + BLOCK_SIZE * blockRow);
+        int Csub_idx = col * M + row;
+        Cvalue += beta * Csub[Csub_idx];
+        Csub[Csub_idx] = Cvalue;
+    }
+}
+
+void GEMMT1(double* A, double* B, double* C, const double alpha, const double beta,
+            const int M, const int N, const int K) {
+    dim3 block(BLOCK_SIZE, BLOCK_SIZE);
+
+    const unsigned int grid_x = ceil(N / (float)block.x);
+    const unsigned int grid_y = ceil(M / (float)block.y);
+    dim3 grid(grid_x, grid_y);
+
+    gpu_GEMMT1<<<grid, block>>>(A, B, C, alpha, beta, M, N, K);
+}
+
+__global__
+void gpu_GEMMT2(double* __restrict__ A, double* __restrict__ B, double* __restrict__ C,
+                const double alpha, const double beta, const int M, const int N, const int K) {
+    int blockCol = blockIdx.y;
+    int blockRow = blockIdx.x;
+    int col = threadIdx.y;
+    int row = threadIdx.x;
+
+    __shared__ double As[BLOCK_SIZE][BLOCK_SIZE+1];
+    __shared__ double Bs[BLOCK_SIZE][BLOCK_SIZE+1];
+
+    double Cvalue = 0;
+    for (int m = 0; m < ((K + BLOCK_SIZE - 1) / BLOCK_SIZE); ++m) {
+        double* Asub = A + (M * BLOCK_SIZE * m + BLOCK_SIZE * blockRow);
+        double* Bsub = B + (N * BLOCK_SIZE * m + BLOCK_SIZE * blockCol);
+
+        if(BLOCK_SIZE * m + col < K){
+            As[row][col] = Asub[col * M + row];
+        }else{
+            As[row][col] = 0;
+        }
+
+        if(BLOCK_SIZE * m + row < K){
+            Bs[row][col] = Bsub[row * N + col];
+            //Bs[col][row] = Bsub[col * N + row]; //for coalescing
+        }else{
+            Bs[row][col] = 0;
+        }
+
+        __syncthreads();
+        for (int e = 0; e < BLOCK_SIZE; ++e)
+            Cvalue += alpha * (As[row][e] * Bs[e][col]);
+        __syncthreads();
+    }
+
+    if(((BLOCK_SIZE * blockCol + col < N) && (BLOCK_SIZE * blockRow + row < M))){
+        double* Csub = C + (M * BLOCK_SIZE * blockCol + BLOCK_SIZE * blockRow);
+        int Csub_idx = col * M + row;
+        Cvalue += beta * Csub[Csub_idx];
+        Csub[Csub_idx] = Cvalue;
+    }
+}
+
+void GEMMT2(double* A, double* B, double* C, const double alpha, const double beta,
+            const int M, const int N, const int K) {
+    dim3 block(BLOCK_SIZE, BLOCK_SIZE);
+
+    const unsigned int grid_x = ceil(M / (float)block.x);
+    const unsigned int grid_y = ceil(N / (float)block.y);
+    dim3 grid(grid_x, grid_y);
+
+    gpu_GEMMT2<<<grid, block>>>(A, B, C, alpha, beta, M, N, K);
+}
+
+/*
+ * Routine to perform an in-place GEMM operation, i.e., C := alpha*A*B + beta*C
+ * A: (M, K), B: (K, N), C: (M, N)
+ * All matrices are organized in column-major order.
+ */
+
+/* Algorithm 2:
+ * Shared memory
+ */
+__global__
+void gpu_GEMM(const double* __restrict__ A, const double* __restrict__ B, double* __restrict__ C,
+              const double alpha, const double beta, const int M, const int N, const int K) {
+    // thread row and column within Csub
+    const unsigned int row = threadIdx.x;
+    const unsigned int col = threadIdx.y;
+    // index within grid
+    const unsigned int grid_row = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int grid_col = blockIdx.y * blockDim.y + threadIdx.y;
+
+    double value = 0.0;
+    const unsigned int iter = ceil(K / float(BLOCK_SIZE));
+    for (int i = 0; i < iter; ++i) {
+        // shared memory used to store Asub and Bsub respectively
+        __shared__ double As[BLOCK_SIZE][BLOCK_SIZE+1];
+        __shared__ double Bs[BLOCK_SIZE][BLOCK_SIZE+1];
+        // load Asub
+        const unsigned int A_col = BLOCK_SIZE * i + col;
+        if (grid_row < M && A_col < K) {
+            As[row][col] = A[M * A_col + grid_row];
+        }
+        // load Bsub
+        const unsigned int B_row = row + BLOCK_SIZE * i;
+        if (B_row < K && grid_col < N) {
+            Bs[row][col] = B[K * grid_col + B_row];
+        }
+
+        __syncthreads();
+
+        unsigned int num_elems = BLOCK_SIZE;
+        if ((K - i * BLOCK_SIZE) < BLOCK_SIZE) {
+            num_elems = K - i * BLOCK_SIZE;
+        }
+        for (int j = 0; j < num_elems; ++j) {
+            value += As[row][j] * Bs[j][col];
+        }
+
+        __syncthreads();
+    }
+
+    if (grid_row < M && grid_col < N) {
+        const unsigned int index = M * grid_col + grid_row;
+        C[index] = alpha * value + beta * C[index];
+    }
+}
+
+int myGEMM(double* A, double* B, double* C, double* alpha, double* beta, int M,
+           int N, int K) {
+    dim3 block(BLOCK_SIZE, BLOCK_SIZE);
+
+    const unsigned int grid_x = ceil(M / (float)block.x);
+    const unsigned int grid_y = ceil(N / (float)block.y);
+    dim3 grid(grid_x, grid_y);
+
+    gpu_GEMM<<<grid, block>>>(A, B, C, *alpha, *beta, M, N, K);
+    return 0;
+}
+
+/* Algorithm 1:
+ * Each thread computes one element of C by accumulating results into value
+ */
+__global__
+void gpu_GEMM_1(double* A, double* B, double* C, double alpha, double beta, int M,
                   int N, int K) {
-    // each thread computes one element of C by accumulating results into value
     const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
     const unsigned int col = blockIdx.y * blockDim.y + threadIdx.y;
     if (row < M && col < N) {
@@ -217,20 +420,14 @@ void myGEMMKernel(double* A, double* B, double* C, double alpha, double beta, in
     }
 }
 
-/*
- * Routine to perform an in-place GEMM operation, i.e., C := alpha*A*B + beta*C
- * A: (M, K), B: (K, N), C: (M, N)
- * All matrices are column-major.
- */
-int myGEMM(double* A, double* B, double* C, double* alpha, double* beta, int M,
+int myGEMM_1(double* A, double* B, double* C, double* alpha, double* beta, int M,
            int N, int K) {
-    /* Write an efficient GEMM implementation on GPU */
     dim3 block(BLOCK_SIZE, NUM_THREADS/BLOCK_SIZE);
 
     const unsigned int grid_x = ceil(M / (float)block.x);
     const unsigned int grid_y = ceil(N / (float)block.y);
     dim3 grid(grid_x, grid_y);
 
-    myGEMMKernel<<<grid, block>>>(A, B, C, *alpha, *beta, M, N, K);
+    gpu_GEMM_1<<<grid, block>>>(A, B, C, *alpha, *beta, M, N, K);
     return 0;
 }

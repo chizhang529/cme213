@@ -31,22 +31,35 @@ echo Output from code
 echo ----------------
 
 # mpirun -np 4 ./main -s -n 1000 -b 800 -l 0.01 -e 20
-echo ++--------------------++
-echo ++      Case 1        ++
-echo ++--------------------++
-mpirun -np 4 ./main -g 1
+# echo "++--------------------++"
+# echo "++      Case 1        ++"
+# echo "++--------------------++"
+# mpirun -np 4 ./main -g 1
+# echo
 
-echo ++--------------------++
-echo ++      Case 2        ++
-echo ++--------------------++
-mpirun -np 4 ./main -g 2
+# echo "++--------------------++"
+# echo "++      Case 2        ++"
+# echo "++--------------------++"
+# mpirun -np 4 ./main -g 2
+# echo
 
-echo ++--------------------++
-echo ++      Case 3        ++
-echo ++--------------------++
-mpirun -np 4 ./main -g 3
+# echo "++--------------------++"
+# echo "++      Case 3        ++"
+# echo "++--------------------++"
+# mpirun -np 4 ./main -g 3
+# echo
 
-echo ++--------------------++
-echo ++      myGEMM        ++
-echo ++--------------------++
-mpirun -np 4 ./main -g 4 # myGEMM
+echo "++--------------------++"
+echo "++     Benchmark      ++"
+echo "++--------------------++"
+mpirun -np 4 ./main
+echo
+
+# echo "++--------------------++"
+# echo "++      myGEMM        ++"
+# echo "++--------------------++"
+# mpirun -np 4 ./main -g 4 # myGEMM
+
+# Profiling
+# MV2_USE_CUDA=1 mpirun -np 4 nvprof --output-profile profile.%p.nvprof ./main -g 3
+# MV2_USE_CUDA=1 mpirun -np 1 nvprof --kernels myGEMMKernel --analysis-metrics --output-profile GEMMmetrics.out.%p.nvprof ./main -g 1

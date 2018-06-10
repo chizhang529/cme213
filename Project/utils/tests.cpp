@@ -4,6 +4,8 @@
 #include "mpi.h"
 
 #include<iomanip>
+#include<fstream>
+#include<chrono>
 using namespace std;
 
 #define SCALE 1         // Factor to SCALE the GEMM problem size by
@@ -181,7 +183,9 @@ void TestGEMM(int M, int N, int K) {
                        dummy, M);
 
     /* Compute reference solution and time the CuBlas */
-    double refstart = MPI_Wtime();
+    using namespace std::chrono;
+    //double refstart = MPI_Wtime();
+    high_resolution_clock::time_point ref_t1 = high_resolution_clock::now();
 
     for(int i = 0; i < NUM_ITERS; i++) {
         stat = cublasDgemm(handle,
@@ -195,7 +199,9 @@ void TestGEMM(int M, int N, int K) {
     }
 
     check_launch("Reference GEMM");
-    double refend = MPI_Wtime();
+    //double refend = MPI_Wtime();
+    high_resolution_clock::time_point ref_t2 = high_resolution_clock::now();
+    duration<double> ref_time_span = duration_cast<duration<double>>(ref_t2 - ref_t1);
 
     if(stat != CUBLAS_STATUS_SUCCESS) {
         std::cerr << "CUBLAS gemm error at " << __FILE__ << ":" << __LINE__ <<
@@ -210,15 +216,17 @@ void TestGEMM(int M, int N, int K) {
     err = myGEMM(dA, dB, dummy, &alpha, &beta, M, N, K);
     check_launch("myGEMM dummy");
 
-    double mystart = MPI_Wtime();
+    //double mystart = MPI_Wtime();
+    high_resolution_clock::time_point t1 = high_resolution_clock::now();
 
     for(int i = 0; i < NUM_ITERS; i++) {
         err = myGEMM(dA, dB, dC1, &alpha, &beta, M, N, K);
     }
 
     check_launch("myGEMM");
-    double myend = MPI_Wtime();
-
+    //double myend = MPI_Wtime();
+    high_resolution_clock::time_point t2 = high_resolution_clock::now();
+    duration<double> my_time_span = duration_cast<duration<double>>(t2 - t1);
 
     /* This error code is for your own debugging, it does not catch
        illegal memory accesses or bad kernel launches */
@@ -232,9 +240,11 @@ void TestGEMM(int M, int N, int K) {
 
     if(fail == 0) {
         std::cout << "Time for reference GEMM implementation: "
-                  << refend - refstart << std::endl;
+                  //<< refend - refstart << std::endl;
+                  << ref_time_span.count() << " seconds" << std::endl;
         std::cout << "Time for my GEMM implementation: "
-                  << myend - mystart << std::endl;
+                  //<< myend - mystart << std::endl;
+                  << my_time_span.count() << " seconds" << std::endl;
     }
 
     free(A);
@@ -245,6 +255,7 @@ void TestGEMM(int M, int N, int K) {
     cudaFree(dB);
     cudaFree(dC1);
     cudaFree(dC2);
+    cudaFree(dummy);
 }
 
 void BenchmarkGEMM() {

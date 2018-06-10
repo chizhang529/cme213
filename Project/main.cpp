@@ -6,6 +6,7 @@
 #include <helper_cuda.h>
 #include <helper_functions.h>
 #include <unistd.h>
+#include <chrono>
 
 #include "utils/mnist.h"
 #include "neural_network.h"
@@ -210,16 +211,17 @@ int main(int argc, char* argv[]) {
 
     /* Run the sequential code if the serial flag is set */
     NeuralNetwork seq_nn(H);
-
+    using namespace std::chrono;
     if((rank == 0) && (run_seq)) {
         std::cout << "Start Sequential Training" << std::endl;
 
-        double start = MPI_Wtime();
+        high_resolution_clock::time_point t1 = high_resolution_clock::now();
         train(seq_nn, x_train, y_train, learning_rate, reg, num_epochs, batch_size,
               false, print_every, debug);
-        double end = MPI_Wtime();
+        high_resolution_clock::time_point t2 = high_resolution_clock::now();
+        duration<double> time_span = duration_cast<duration<double>>(t2 - t1);
 
-        std::cout << "Time for Sequential Training: " << end - start << " seconds" <<
+        std::cout << "Time for Sequential Training: " << time_span.count() << " seconds" <<
                   std::endl;
 
         arma::rowvec label_dev_pred;
@@ -234,16 +236,17 @@ int main(int argc, char* argv[]) {
         std::cout << std::endl << "Start Parallel Training" << std::endl;
     }
 
-    double start = MPI_Wtime();
+    high_resolution_clock::time_point t1 = high_resolution_clock::now();
 
     /* ---- Parallel Training ---- */
     parallel_train(nn, x_train, y_train, learning_rate, reg, num_epochs, batch_size,
                    false, print_every, debug);
 
-    double end = MPI_Wtime();
+    high_resolution_clock::time_point t2 = high_resolution_clock::now();
+    duration<double> time_span = duration_cast<duration<double>>(t2 - t1);
 
     if(rank == 0) {
-        std::cout << "Time for Parallel Training: " << end - start << " seconds" <<
+        std::cout << "Time for Parallel Training: " << time_span.count() << " seconds" <<
                   std::endl;
     }
 

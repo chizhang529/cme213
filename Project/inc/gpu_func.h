@@ -41,17 +41,22 @@ inline double stop_timer(event_pair* p) {
 
 int useless_gpu_add_one(int t);
 
-// helper functions
-void gpu_sigmoid(double *mat, int M, int N);
-void gpu_softmax(double *mat, int M, int N);
-void gpu_transpose(double *mat1, double *mat2, int M, int N);
-void gpu_linear(double *mat1, double *mat2, double alpha, double beta, int M, int N, int flag);
-// void gpu_sum(double *mat1, double *mat2, int M, int N, int mode);
-void gpu_row_sum(double *mat1, double *mat2, int M, int N);
-void gpu_elem_mult(double* mat1, double* mat2, double alpha, int M, int N);
+// helper functions to launch kernels
+void gpu_softmax(double *mat, const int M, const int N);
+void gpu_linear(double *mat1, double *mat2, double *mat3,
+                const double alpha, const double beta, const int M, const int N);
+void gpu_row_sum(double *mat1, double *mat2, const int M, const int N);
+void gpu_one_minus(double *mat1, double *mat2, const int M, const int N);
+void gpu_elem_mult(double* mat1, double* mat2, const double alpha, const int M, const int N);
+void GEMMSigmoid(double* A, double* B, double* C, const double alpha, const double beta,
+                 const int M, const int N, const int K);
 
 // general matrix multiplication
 int myGEMM(double* A, double* B, double* C, double* alpha, double* beta, int M,
            int N, int K);
+void GEMMT1(double* A, double* B, double* C, const double alpha, const double beta,
+            const int M, const int N, const int K);
+void GEMMT2(double* A, double* B, double* C, const double alpha, const double beta,
+            const int M, const int N, const int K);
 
 #endif
