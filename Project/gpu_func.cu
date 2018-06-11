@@ -224,6 +224,7 @@ void GEMMSigmoid(double* A, double* B, double* C, const double alpha, const doub
     const unsigned int grid_y = ceil(N / (float)block.y);
     dim3 grid(grid_x, grid_y);
 
+    cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte);
     gpu_GEMMSigmoid<<<grid, block>>>(A, B, C, alpha, beta, M, N, K);
 }
 
@@ -405,6 +406,7 @@ int myGEMM(double* A, double* B, double* C, double* alpha, double* beta, int M,
     const unsigned int grid_y = ceil(N / (float)block.y);
     dim3 grid(grid_x, grid_y);
 
+    cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte);
     gpu_GEMM<<<grid, block>>>(A, B, C, *alpha, *beta, M, N, K);
     return 0;
 }

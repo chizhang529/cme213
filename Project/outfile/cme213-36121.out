@@ -1,0 +1,26 @@
+The master node of this job is gpu-200-4.stanford.edu
+This job runs on the following nodes:
+gpu-200-4
+Starting at Sun Jun 10 17:43:41 PDT 2018
+Running on hosts: gpu-200-4
+Running on 1 nodes.
+Running on 24 processors.
+Current working directory is /home/czhang94/project
+
+Output from code
+----------------
+++--------------------++
+++     Benchmark      ++
+++--------------------++
+Number of MPI processes = 4
+Number of CUDA devices = 4
+num_neuron=1000, reg=0.0001, learning_rate=0.001, num_epochs=20, batch_size=800
+Loading training data...
+Training data stats...
+Size of x_train, N =  60000
+Size of label_train = 60000
+
+Start Parallel Training
+Time for Parallel Training: 49.4069 seconds
+Precision on validation set for parallel training = 0.909833
+
